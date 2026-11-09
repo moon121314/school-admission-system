@@ -1,0 +1,25 @@
+# .NET build artifacts
+**/bin/
+**/obj/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Node / React
+**/node_modules/
+**/dist/
+.vite/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Test output
+TestResults/
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
