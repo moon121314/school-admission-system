@@ -1,23 +1,51 @@
+using Microsoft.EntityFrameworkCore;
+using SchoolAdmission.Api.Middleware;
+using SchoolAdmission.Application.Interfaces;
+using SchoolAdmission.Infrastructure.Persistence;
+using SchoolAdmission.Infrastructure.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+string host = Environment.GetEnvironmentVariable("POSTGRES_HOST") ?? "localhost";
+string port = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5432";
+string database = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "school_admission";
+string user = Environment.GetEnvironmentVariable("POSTGRES_USER") ?? "postgres";
+string password = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "postgres";
+string connectionString = $"Host={host};Port={port};Database={database};Username={user};Password={password}";
 
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddDbContext<AdmissionDbContext>(o => o.UseNpgsql(connectionString));
+
+var holdSeconds = int.TryParse(Environment.GetEnvironmentVariable("HOLD_DURATION_SECONDS"), out var s) ? s : 600;
+builder.Services.AddSingleton(new HoldOptions { HoldDurationSeconds = holdSeconds });
+builder.Services.AddSingleton(TimeProvider.System);
+
+builder.Services.AddScoped<IClassService, ClassService>();
+builder.Services.AddScoped<IHoldService, HoldService>();
+builder.Services.AddScoped<StudentIdFilter>();
+
+builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddControllers(o => o.Filters.Add<StudentIdFilter>());
+
+// Built-in .NET 10 OpenAPI — replaces Swashbuckle.
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+using (var scope = app.Services.CreateScope())
 {
-    app.MapOpenApi();
+    var db = scope.ServiceProvider.GetRequiredService<AdmissionDbContext>();
+    db.Database.Migrate();
 }
 
-app.UseHttpsRedirection();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseCors();
 
-app.UseAuthorization();
+// Serves the OpenAPI JSON at /openapi/v1.json
+app.MapOpenApi();
 
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 app.Run();
+
+public partial class Program { }
