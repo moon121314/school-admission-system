@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using SchoolAdmission.Api.Extensions;
 using SchoolAdmission.Application.DTOs;
 using SchoolAdmission.Application.Interfaces;
@@ -12,6 +13,7 @@ public class HoldsController : ControllerBase
     public HoldsController(IHoldService service) => _service = service;
 
     [HttpPost("classes/{classId:int}/holds")]
+    [EnableRateLimiting("write")]
     public async Task<ActionResult<HoldCreatedResponse>> Create(int classId, CancellationToken ct)
     {
         string studentId = HttpContext.RequireStudentId();
@@ -24,6 +26,7 @@ public class HoldsController : ControllerBase
         => Ok(await _service.GetAsync(holdId, ct));
 
     [HttpPost("holds/{holdId:int}/confirm")]
+    [EnableRateLimiting("write")]
     public async Task<ActionResult<ConfirmResponse>> Confirm(int holdId, CancellationToken ct)
     {
         string studentId = HttpContext.RequireStudentId();
@@ -31,6 +34,7 @@ public class HoldsController : ControllerBase
     }
 
     [HttpDelete("holds/{holdId:int}")]
+    [EnableRateLimiting("write")]
     public async Task<IActionResult> Cancel(int holdId, CancellationToken ct)
     {
         string studentId = HttpContext.RequireStudentId();

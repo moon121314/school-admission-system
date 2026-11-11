@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SchoolAdmission.Api.Middleware;
 using SchoolAdmission.Application.Interfaces;
@@ -24,8 +26,10 @@ builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IHoldService, HoldService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<StudentIdFilter>();
+builder.Services.AddScoped<AdminKeyFilter>();
 
-builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddCors(o => o.AddDefaultPolicy(p =>
+    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 builder.Services.AddControllers(o => o.Filters.Add<StudentIdFilter>())
     .AddJsonOptions(opts =>
@@ -33,16 +37,69 @@ builder.Services.AddControllers(o => o.Filters.Add<StudentIdFilter>())
 
 builder.Services.AddOpenApi();
 
+// Rate limiting:
+//   - "write" policy: 10 writes / minute per IP (holds create, confirm, cancel, class create, class edit)
+//   - default policy: 120 requests / minute per IP (reads + everything else)
+//   - DISABLE_RATE_LIMIT=true short-circuits both limiters to NoLimiter — used by
+//     integration tests where 20+ concurrent writes come from the same process
+//     and would otherwise be blocked before reaching the service layer.
+var disableRateLimit = string.Equals(
+    Environment.GetEnvironmentVariable("DISABLE_RATE_LIMIT"),
+    "true", StringComparison.OrdinalIgnoreCase);
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, token) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsync(
+            "{\"error\":\"Too many requests. Please slow down.\"}", token);
+    };
+
+    if (disableRateLimit)
+    {
+        // Tests: unlimited for both global and named policies so concurrency
+        // tests exercise the DB/service layer instead of the limiter.
+        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(
+            _ => RateLimitPartition.GetNoLimiter("test"));
+        options.AddPolicy("write", _ => RateLimitPartition.GetNoLimiter("test"));
+        return;
+    }
+
+    options.AddPolicy("write", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AdmissionDbContext>();
     db.Database.Migrate();
+    await DemoData.SeedAsync(db);
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors();
+app.UseRateLimiter();
 
 app.MapOpenApi();
 app.MapControllers();

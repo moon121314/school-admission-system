@@ -8,11 +8,14 @@ import {
 } from "../../api/client";
 import type { ClassResponse } from "../../types/api";
 import { useToast } from "../../contexts/ToastContext";
+import { validateClassForm, LIMITS } from "../../utils/validators";
 
 interface EditingState {
   id: number;
   name: string;
   totalSeats: number;
+  nameError?: string;
+  seatsError?: string;
 }
 
 export function AdminClassesPage() {
@@ -23,10 +26,14 @@ export function AdminClassesPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Create form
+  // Create form state with inline errors
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
   const [newSeats, setNewSeats] = useState(120);
+  const [createErrors, setCreateErrors] = useState<{
+    nameError?: string;
+    seatsError?: string;
+  }>({});
   const [creating, setCreating] = useState(false);
 
   async function refresh() {
@@ -47,14 +54,15 @@ export function AdminClassesPage() {
 
   async function createClass(e: FormEvent) {
     e.preventDefault();
-    if (!newName.trim()) {
-      toast.warn("Enter a class name.");
+    const validation = validateClassForm(newName, newSeats);
+    if (!validation.ok) {
+      setCreateErrors({
+        nameError: validation.nameError,
+        seatsError: validation.seatsError,
+      });
       return;
     }
-    if (newSeats < 1) {
-      toast.warn("Seats must be at least 1.");
-      return;
-    }
+    setCreateErrors({});
     setCreating(true);
     try {
       await api.post("/classes", {
@@ -82,17 +90,22 @@ export function AdminClassesPage() {
 
   async function saveEdit() {
     if (!editing) return;
-    const target = classes.find((c) => c.id === editing.id);
-    if (!target) return;
-    const used = target.heldSeats + target.confirmedSeats;
-    if (editing.totalSeats < used) {
-      toast.warn(
-        `Cannot reduce below ${used} seat(s) — those are already in use.`,
-      );
+    const validation = validateClassForm(editing.name, editing.totalSeats);
+    if (!validation.ok) {
+      setEditing({
+        ...editing,
+        nameError: validation.nameError,
+        seatsError: validation.seatsError,
+      });
       return;
     }
-    if (editing.name.trim().length === 0) {
-      toast.warn("Name cannot be empty.");
+    const target = classes.find((c) => c.id === editing.id);
+    const used = (target?.heldSeats ?? 0) + (target?.confirmedSeats ?? 0);
+    if (editing.totalSeats < used) {
+      setEditing({
+        ...editing,
+        seatsError: `Cannot reduce below ${used} — those seats are in use.`,
+      });
       return;
     }
     setSaving(true);
@@ -144,30 +157,66 @@ export function AdminClassesPage() {
       </div>
 
       {showCreate && (
-        <form onSubmit={createClass} className="card p-5">
+        <form onSubmit={createClass} className="card p-5" noValidate>
           <h3 className="text-sm font-semibold text-navy-900 mb-3">
             Create a class
           </h3>
           <div className="flex flex-col sm:flex-row gap-2">
-            <input
-              className="input flex-1"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Class 6 - Morning Shift"
-              autoFocus
-            />
-            <input
-              className="input sm:max-w-[130px]"
-              type="number"
-              min={1}
-              value={newSeats}
-              onChange={(e) => setNewSeats(Number(e.target.value))}
-              placeholder="Total seats"
-            />
+            <div className="flex-1 min-w-0">
+              <input
+                className={`input w-full ${
+                  createErrors.nameError
+                    ? "border-danger-300 focus:border-danger-500"
+                    : ""
+                }`}
+                value={newName}
+                onChange={(e) => {
+                  setNewName(e.target.value);
+                  if (createErrors.nameError)
+                    setCreateErrors({ ...createErrors, nameError: undefined });
+                }}
+                placeholder="e.g. Class 6 - Morning Shift"
+                maxLength={LIMITS.NAME_MAX}
+                autoFocus
+              />
+              {createErrors.nameError && (
+                <p className="text-xs text-danger-600 mt-1">
+                  {createErrors.nameError}
+                </p>
+              )}
+            </div>
+            <div className="sm:max-w-[140px]">
+              <input
+                className={`input w-full ${
+                  createErrors.seatsError
+                    ? "border-danger-300 focus:border-danger-500"
+                    : ""
+                }`}
+                type="number"
+                min={LIMITS.SEATS_MIN}
+                max={LIMITS.SEATS_MAX}
+                value={newSeats}
+                onChange={(e) => {
+                  setNewSeats(Number(e.target.value));
+                  if (createErrors.seatsError)
+                    setCreateErrors({ ...createErrors, seatsError: undefined });
+                }}
+                placeholder="Total seats"
+              />
+              {createErrors.seatsError && (
+                <p className="text-xs text-danger-600 mt-1">
+                  {createErrors.seatsError}
+                </p>
+              )}
+            </div>
             <button type="submit" className="btn-primary" disabled={creating}>
               {creating ? "Creating..." : "Create"}
             </button>
           </div>
+          <p className="text-xs text-navy-400 mt-2">
+            Seat capacity must be between {LIMITS.SEATS_MIN} and{" "}
+            {LIMITS.SEATS_MAX}.
+          </p>
         </form>
       )}
 
@@ -208,24 +257,11 @@ export function AdminClassesPage() {
                 <>
                   {[1, 2, 3].map((i) => (
                     <tr key={i} className="border-b border-navy-100">
-                      <td className="px-4 py-3">
-                        <div className="skeleton h-4 w-40" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="skeleton h-4 w-10" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="skeleton h-4 w-10" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="skeleton h-4 w-10" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="skeleton h-4 w-10" />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="skeleton h-4 w-16 ml-auto" />
-                      </td>
+                      {[1, 2, 3, 4, 5, 6].map((j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="skeleton h-4 w-full max-w-[80px]" />
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </>
@@ -264,14 +300,28 @@ export function AdminClassesPage() {
                     >
                       <td className="px-4 py-3">
                         {isEditing ? (
-                          <input
-                            className="input"
-                            value={editing.name}
-                            onChange={(e) =>
-                              setEditing({ ...editing, name: e.target.value })
-                            }
-                            autoFocus
-                          />
+                          <div>
+                            <input
+                              className={`input ${
+                                editing.nameError ? "border-danger-300" : ""
+                              }`}
+                              value={editing.name}
+                              onChange={(e) =>
+                                setEditing({
+                                  ...editing,
+                                  name: e.target.value,
+                                  nameError: undefined,
+                                })
+                              }
+                              maxLength={LIMITS.NAME_MAX}
+                              autoFocus
+                            />
+                            {editing.nameError && (
+                              <p className="text-xs text-danger-600 mt-1">
+                                {editing.nameError}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <span className="font-semibold text-navy-900">
                             {c.name}
@@ -280,18 +330,29 @@ export function AdminClassesPage() {
                       </td>
                       <td className="px-4 py-3 tabular-nums">
                         {isEditing ? (
-                          <input
-                            type="number"
-                            min={Math.max(1, used)}
-                            className="input max-w-[90px] text-right tabular-nums"
-                            value={editing.totalSeats}
-                            onChange={(e) =>
-                              setEditing({
-                                ...editing,
-                                totalSeats: Number(e.target.value),
-                              })
-                            }
-                          />
+                          <div>
+                            <input
+                              type="number"
+                              min={Math.max(1, used)}
+                              max={LIMITS.SEATS_MAX}
+                              className={`input max-w-[90px] text-right tabular-nums ${
+                                editing.seatsError ? "border-danger-300" : ""
+                              }`}
+                              value={editing.totalSeats}
+                              onChange={(e) =>
+                                setEditing({
+                                  ...editing,
+                                  totalSeats: Number(e.target.value),
+                                  seatsError: undefined,
+                                })
+                              }
+                            />
+                            {editing.seatsError && (
+                              <p className="text-xs text-danger-600 mt-1 whitespace-nowrap">
+                                {editing.seatsError}
+                              </p>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-navy-700">{c.totalSeats}</span>
                         )}
