@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import { extractErrorMessage, listMyHolds } from "../api/client";
 import type { MyHoldResponse } from "../types/api";
 import { useStudentId } from "../hooks/useStudentId";
+import { useToast } from "../contexts/ToastContext";
 import { HoldCard } from "../components/HoldCard";
-import { Loading } from "../components/Loading";
-import { EmptyState } from "../components/EmptyState";
+import { SkeletonCard } from "../components/Skeleton";
+import { IconInbox } from "../components/Icons";
 
 export function MyHoldsPage() {
   const { studentId } = useStudentId();
+  const toast = useToast();
   const [holds, setHolds] = useState<MyHoldResponse[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
@@ -18,10 +19,9 @@ export function MyHoldsPage() {
       return;
     }
     try {
-      setError(null);
       setHolds(await listMyHolds(studentId));
     } catch (e) {
-      setError(extractErrorMessage(e));
+      toast.error(extractErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -36,30 +36,44 @@ export function MyHoldsPage() {
   return (
     <>
       <div className="page-header">
-        <h1>My Applications</h1>
-        <p>Your seat reservations and confirmed admissions.</p>
+        <div className="page-header__text">
+          <h1>My Applications</h1>
+          <p>Your seat reservations and confirmed admissions.</p>
+        </div>
       </div>
-
-      {error && <div className="alert alert--error">{error}</div>}
 
       {!studentId && (
         <div className="alert alert--info">
-          Enter your 17-digit birth registration number at the top to view your
-          applications.
+          <span className="alert__icon">ℹ️</span>
+          <span>
+            Enter your 17-digit birth registration number at the top to view
+            your applications.
+          </span>
         </div>
       )}
 
-      {studentId && loading && <Loading />}
+      {studentId && loading && (
+        <>
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      )}
 
       {studentId && !loading && holds.length === 0 && (
-        <EmptyState
-          icon="📝"
-          title="No applications yet"
-          text="You haven't applied for any class. Open the Classes tab to get started."
-        />
+        <div className="empty">
+          <div className="empty__icon">
+            <IconInbox size={56} />
+          </div>
+          <h3 className="empty__title">No applications yet</h3>
+          <p className="empty__text">
+            You haven't applied for any class. Open the Classes tab to get
+            started.
+          </p>
+        </div>
       )}
 
       {studentId &&
+        !loading &&
         holds.map((h) => (
           <HoldCard key={h.holdId} hold={h} onChange={refresh} />
         ))}
