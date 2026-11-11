@@ -3,6 +3,8 @@ import { extractErrorMessage, listMyHolds } from "../api/client";
 import type { MyHoldResponse } from "../types/api";
 import { useStudentId } from "../hooks/useStudentId";
 import { HoldCard } from "../components/HoldCard";
+import { Loading } from "../components/Loading";
+import { EmptyState } from "../components/EmptyState";
 
 export function MyHoldsPage() {
   const { studentId } = useStudentId();
@@ -31,22 +33,36 @@ export function MyHoldsPage() {
     return () => clearInterval(id);
   }, [studentId]);
 
-  if (!studentId)
-    return (
-      <p>
-        Enter your birth registration number above to see your applications.
-      </p>
-    );
-
   return (
-    <div>
-      <h1>My Applications</h1>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      {loading && <p>Loading...</p>}
-      {!loading && holds.length === 0 && <p>No applications yet.</p>}
-      {holds.map((h) => (
-        <HoldCard key={h.holdId} hold={h} onChange={refresh} />
-      ))}
-    </div>
+    <>
+      <div className="page-header">
+        <h1>My Applications</h1>
+        <p>Your seat reservations and confirmed admissions.</p>
+      </div>
+
+      {error && <div className="alert alert--error">{error}</div>}
+
+      {!studentId && (
+        <div className="alert alert--info">
+          Enter your 17-digit birth registration number at the top to view your
+          applications.
+        </div>
+      )}
+
+      {studentId && loading && <Loading />}
+
+      {studentId && !loading && holds.length === 0 && (
+        <EmptyState
+          icon="📝"
+          title="No applications yet"
+          text="You haven't applied for any class. Open the Classes tab to get started."
+        />
+      )}
+
+      {studentId &&
+        holds.map((h) => (
+          <HoldCard key={h.holdId} hold={h} onChange={refresh} />
+        ))}
+    </>
   );
 }

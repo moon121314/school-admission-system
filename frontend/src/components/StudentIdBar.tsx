@@ -4,41 +4,47 @@ import { useStudentId } from "../hooks/useStudentId";
 export function StudentIdBar() {
   const { studentId, setStudentId } = useStudentId();
   const [draft, setDraft] = useState(studentId ?? "");
+  const [error, setError] = useState<string | null>(null);
 
   function save() {
     if (draft.length !== 17 || !/^\d+$/.test(draft)) {
-      alert("Birth registration number must be exactly 17 digits.");
+      setError("Must be exactly 17 digits.");
       return;
     }
+    setError(null);
     setStudentId(draft);
   }
 
   return (
-    <header
-      style={{
-        padding: "1rem 2rem",
-        borderBottom: "1px solid #ddd",
-        display: "flex",
-        alignItems: "center",
-        gap: "1rem",
-      }}
-    >
-      <strong style={{ marginRight: "auto" }}>School Admission</strong>
+    <header className="topbar">
+      <div className="topbar__brand">
+        <div className="topbar__logo">🎓</div>
+        <span>School Admission</span>
+      </div>
+
       <input
+        className="topbar__input"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setError(null);
+        }}
+        onKeyDown={(e) => e.key === "Enter" && save()}
         placeholder="Birth registration (17 digits)"
         maxLength={17}
-        style={{ padding: "0.4rem", width: "18rem" }}
+        inputMode="numeric"
+        aria-label="Birth registration number"
       />
-      <button onClick={save} style={{ padding: "0.4rem 1rem" }}>
+      <button className="btn btn--primary" onClick={save}>
         Save
       </button>
+
       {studentId && (
-        <span style={{ color: "#666", fontSize: "0.9rem" }}>
-          ID: {studentId}
+        <span className="topbar__saved">
+          ID: <strong>{studentId}</strong>
         </span>
       )}
+      {error && <span className="topbar__error">{error}</span>}
     </header>
   );
 }

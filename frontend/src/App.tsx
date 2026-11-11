@@ -8,21 +8,28 @@ export default function App() {
   return (
     <BrowserRouter>
       <StudentIdBar />
-      <nav
-        style={{
-          padding: "0.75rem 2rem",
-          borderBottom: "1px solid #eee",
-          display: "flex",
-          gap: "1rem",
-        }}
-      >
-        <NavLink to="/">Classes</NavLink>
-        <NavLink to="/me">My Applications</NavLink>
-        <NavLink to="/admin">Admin</NavLink>
+      <nav className="nav">
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
+          Classes
+        </NavLink>
+        <NavLink
+          to="/me"
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
+          My Applications
+        </NavLink>
+        <NavLink
+          to="/admin"
+          className={({ isActive }) => (isActive ? "active" : "")}
+        >
+          Admin
+        </NavLink>
       </nav>
-      <main
-        style={{ padding: "1.5rem 2rem", maxWidth: 1000, margin: "0 auto" }}
-      >
+      <main className="main">
         <Routes>
           <Route path="/" element={<ClassesPage />} />
           <Route path="/me" element={<MyHoldsPage />} />

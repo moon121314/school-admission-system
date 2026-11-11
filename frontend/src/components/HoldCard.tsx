@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
 import { api, extractErrorMessage } from "../api/client";
-import type { MyHoldResponse } from "../types/api";
+import type { MyHoldResponse, HoldStatus } from "../types/api";
+
+const STATUS_LABEL: Record<HoldStatus, string> = {
+  HELD: "Reserved",
+  CONFIRMED: "Confirmed",
+  EXPIRED: "Expired",
+  CANCELLED: "Cancelled",
+};
+
+const STATUS_CLASS: Record<HoldStatus, string> = {
+  HELD: "status--held",
+  CONFIRMED: "status--confirmed",
+  EXPIRED: "status--expired",
+  CANCELLED: "status--cancelled",
+};
 
 export function HoldCard({
   hold,
@@ -19,11 +33,13 @@ export function HoldCard({
   }, []);
 
   const expiryMs = new Date(hold.expiresAt).getTime();
-  const displayStatus =
+  const displayStatus: HoldStatus =
     hold.status === "HELD" && expiryMs <= now ? "EXPIRED" : hold.status;
+
   const remainingSec = Math.max(0, Math.floor((expiryMs - now) / 1000));
   const mins = Math.floor(remainingSec / 60);
   const secs = remainingSec % 60;
+  const urgent = remainingSec > 0 && remainingSec < 60;
 
   async function confirmHold() {
     setBusy(true);
@@ -56,33 +72,47 @@ export function HoldCard({
     }
   }
 
-  const canAct = displayStatus === "HELD" && !busy;
-
   return (
-    <div
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        padding: "1rem",
-        marginBottom: "0.75rem",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <strong>{hold.className}</strong>
-        <span style={{ fontWeight: 600 }}>{displayStatus}</span>
+    <div className="hold-card">
+      <div className="hold-card__header">
+        <div>
+          <h3 className="hold-card__title">{hold.className}</h3>
+          <div className="hold-card__meta">Application #{hold.holdId}</div>
+        </div>
+        <span className={`hold-card__status ${STATUS_CLASS[displayStatus]}`}>
+          {STATUS_LABEL[displayStatus]}
+        </span>
       </div>
+
       {displayStatus === "HELD" && (
-        <p style={{ color: remainingSec < 60 ? "crimson" : "#555" }}>
-          Expires in {mins}m {secs}s
-        </p>
+        <div
+          className={`hold-card__countdown ${
+            urgent ? "hold-card__countdown--urgent" : ""
+          }`}
+        >
+          {urgent ? "⏳ Expires in " : "⏱ Expires in "}
+          <strong>
+            {mins}m {secs.toString().padStart(2, "0")}s
+          </strong>
+        </div>
       )}
-      {error && <p style={{ color: "crimson", fontSize: "0.9rem" }}>{error}</p>}
-      {canAct && (
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-          <button onClick={confirmHold} disabled={busy}>
-            Confirm payment
+
+      {error && <div className="alert alert--error">{error}</div>}
+
+      {displayStatus === "HELD" && (
+        <div className="hold-card__actions">
+          <button
+            className="btn btn--primary"
+            onClick={confirmHold}
+            disabled={busy}
+          >
+            {busy ? "Working..." : "Confirm payment"}
           </button>
-          <button onClick={cancelHold} disabled={busy}>
+          <button
+            className="btn btn--danger"
+            onClick={cancelHold}
+            disabled={busy}
+          >
             Cancel
           </button>
         </div>
