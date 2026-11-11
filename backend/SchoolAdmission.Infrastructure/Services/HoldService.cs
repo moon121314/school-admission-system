@@ -26,6 +26,7 @@ public class HoldService : IHoldService
     public async Task<HoldCreatedResponse> CreateAsync(int classId, string studentId, CancellationToken ct)
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        bool committed = false;
         try
         {
             var cls = await _db.AdmissionClasses
@@ -34,6 +35,7 @@ public class HoldService : IHoldService
             if (cls is null) throw new NotFoundException($"Class {classId} not found.");
 
             var now = _time.GetUtcNow();
+
             var expired = await _db.AdmissionHolds
                 .Where(h => h.ClassId == classId && h.Status == HoldStatus.HELD && h.ExpiresAt <= now)
                 .ToListAsync(ct);
@@ -59,9 +61,14 @@ public class HoldService : IHoldService
             _db.AdmissionHolds.Add(hold);
             await _db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
+            committed = true;
             return new HoldCreatedResponse(hold.Id, hold.ClassId, hold.StudentId, hold.Status, hold.ExpiresAt);
         }
-        catch { await tx.RollbackAsync(ct); throw; }
+        catch
+        {
+            if (!committed) await tx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task<HoldDetailResponse> GetAsync(int holdId, CancellationToken ct)
@@ -76,6 +83,7 @@ public class HoldService : IHoldService
     public async Task<ConfirmResponse> ConfirmAsync(int holdId, string studentId, CancellationToken ct)
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        bool committed = false;
         try
         {
             var hold = await _db.AdmissionHolds
@@ -84,27 +92,45 @@ public class HoldService : IHoldService
             if (hold is null) throw new NotFoundException($"Hold {holdId} not found.");
             if (hold.StudentId != studentId) throw new ForbiddenException("This hold belongs to another student.");
 
-            if (hold.Status == HoldStatus.CONFIRMED) { await tx.CommitAsync(ct); return new ConfirmResponse(hold.Id, hold.Status); }
+            if (hold.Status == HoldStatus.CONFIRMED)
+            {
+                await tx.CommitAsync(ct);
+                committed = true;
+                return new ConfirmResponse(hold.Id, hold.Status);
+            }
 
             var now = _time.GetUtcNow();
+
             if (hold.Status == HoldStatus.HELD && hold.ExpiresAt <= now)
             {
                 hold.Status = HoldStatus.EXPIRED;
-                await _db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+                committed = true;
                 throw new ConflictException("Hold has expired and cannot be confirmed.");
             }
-            if (hold.Status != HoldStatus.HELD) throw new ConflictException($"Hold is {hold.Status}; cannot confirm.");
 
-            hold.Status = HoldStatus.CONFIRMED; hold.ConfirmedAt = now;
-            await _db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+            if (hold.Status != HoldStatus.HELD)
+                throw new ConflictException($"Hold is {hold.Status}; cannot confirm.");
+
+            hold.Status = HoldStatus.CONFIRMED;
+            hold.ConfirmedAt = now;
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            committed = true;
             return new ConfirmResponse(hold.Id, hold.Status);
         }
-        catch { await tx.RollbackAsync(ct); throw; }
+        catch
+        {
+            if (!committed) await tx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task CancelAsync(int holdId, string studentId, CancellationToken ct)
     {
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        bool committed = false;
         try
         {
             var hold = await _db.AdmissionHolds
@@ -113,13 +139,20 @@ public class HoldService : IHoldService
             if (hold is null) throw new NotFoundException($"Hold {holdId} not found.");
             if (hold.StudentId != studentId) throw new ForbiddenException("This hold belongs to another student.");
 
-            if (hold.Status == HoldStatus.CANCELLED) { await tx.CommitAsync(ct); return; }
+            if (hold.Status == HoldStatus.CANCELLED) { await tx.CommitAsync(ct); committed = true; return; }
             if (hold.Status != HoldStatus.HELD) throw new ConflictException($"Hold is {hold.Status}; cannot cancel.");
 
-            hold.Status = HoldStatus.CANCELLED; hold.CancelledAt = _time.GetUtcNow();
-            await _db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+            hold.Status = HoldStatus.CANCELLED;
+            hold.CancelledAt = _time.GetUtcNow();
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            committed = true;
         }
-        catch { await tx.RollbackAsync(ct); throw; }
+        catch
+        {
+            if (!committed) await tx.RollbackAsync(ct);
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<MyHoldResponse>> ListMineAsync(string studentId, CancellationToken ct)
