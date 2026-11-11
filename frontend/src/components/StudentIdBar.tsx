@@ -1,23 +1,19 @@
 import { useState } from "react";
+import { GraduationCap, Copy, Check } from "lucide-react";
 import { useStudentId } from "../hooks/useStudentId";
-import { useTheme } from "../contexts/ThemeContext";
 import { useToast } from "../contexts/ToastContext";
-import { IconCopy, IconGraduationCap, IconMoon, IconSun } from "./Icons";
 
 export function StudentIdBar() {
   const { studentId, setStudentId } = useStudentId();
-  const { theme, toggle } = useTheme();
   const toast = useToast();
   const [draft, setDraft] = useState(studentId ?? "");
-  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   function save() {
     if (draft.length !== 17 || !/^\d+$/.test(draft)) {
-      setError("Must be exactly 17 digits.");
-      toast.warn("Birth registration number must be 17 digits.");
+      toast.warn("Birth registration number must be exactly 17 digits.");
       return;
     }
-    setError(null);
     setStudentId(draft);
     toast.success("Identity saved.");
   }
@@ -26,65 +22,53 @@ export function StudentIdBar() {
     if (!studentId) return;
     try {
       await navigator.clipboard.writeText(studentId);
-      toast.info("ID copied to clipboard.");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+      toast.info("ID copied.");
     } catch {
-      toast.error("Could not copy to clipboard.");
+      toast.error("Copy failed.");
     }
   }
 
   return (
-    <header className="topbar">
-      <div className="topbar__brand">
-        <div className="topbar__logo">
-          <IconGraduationCap size={18} />
+    <header className="sticky top-0 z-20 bg-white border-b border-navy-200">
+      <div className="max-w-6xl mx-auto flex items-center gap-3 px-6 py-3 flex-wrap">
+        <div className="flex items-center gap-2 mr-auto">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white">
+            <GraduationCap className="w-4 h-4" />
+          </div>
+          <span className="font-bold text-navy-900">School Admission</span>
         </div>
-        <span>School Admission</span>
+        <input
+          className="input max-w-[240px] font-mono text-sm"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          placeholder="Birth registration (17 digits)"
+          maxLength={17}
+          inputMode="numeric"
+          aria-label="Birth registration number"
+        />
+        <button className="btn-primary" onClick={save}>
+          Save
+        </button>
+        {studentId && (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-success-50 text-success-700 text-xs font-medium border border-success-100 font-mono">
+            {studentId}
+            <button
+              onClick={copy}
+              className="opacity-60 hover:opacity-100 transition-opacity"
+              aria-label="Copy ID"
+            >
+              {copied ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+            </button>
+          </span>
+        )}
       </div>
-
-      <button
-        className="icon-btn"
-        onClick={toggle}
-        aria-label={
-          theme === "light" ? "Switch to dark mode" : "Switch to light mode"
-        }
-        title={theme === "light" ? "Dark mode" : "Light mode"}
-      >
-        {theme === "light" ? <IconMoon size={16} /> : <IconSun size={16} />}
-      </button>
-
-      <input
-        className="topbar__input"
-        value={draft}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setError(null);
-        }}
-        onKeyDown={(e) => e.key === "Enter" && save()}
-        placeholder="Birth registration (17 digits)"
-        maxLength={17}
-        inputMode="numeric"
-        aria-label="Birth registration number"
-      />
-      <button className="btn btn--primary" onClick={save}>
-        Save
-      </button>
-
-      {studentId && (
-        <span className="topbar__badge">
-          ID: {studentId}
-          <button className="topbar__copy" onClick={copy} aria-label="Copy ID">
-            <IconCopy size={13} />
-          </button>
-        </span>
-      )}
-      {error && (
-        <span
-          className="alert alert--error"
-          style={{ padding: "4px 10px", marginBottom: 0, fontSize: 12 }}
-        >
-          {error}
-        </span>
-      )}
     </header>
   );
 }
