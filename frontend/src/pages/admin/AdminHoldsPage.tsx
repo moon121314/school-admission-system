@@ -1,15 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Inbox } from "lucide-react";
 import { extractErrorMessage, listAdminHolds } from "../../api/client";
 import type { AdminHoldRow, HoldStatus } from "../../types/api";
 import { useToast } from "../../contexts/ToastContext";
-import { SkeletonRow } from "../../components/Skeleton";
-import { IconInbox } from "../../components/Icons";
 
-const STATUS_CLASS: Record<string, string> = {
-  HELD: "badge--warn",
-  CONFIRMED: "badge--success",
-  EXPIRED: "",
-  CANCELLED: "badge--full",
+const STATUS_BADGE: Record<HoldStatus, string> = {
+  HELD: "badge badge-warn",
+  CONFIRMED: "badge badge-success",
+  EXPIRED: "badge badge-neutral",
+  CANCELLED: "badge badge-danger",
 };
 
 const STATUS_OPTIONS: { value: "" | HoldStatus; label: string }[] = [
@@ -28,6 +27,7 @@ export function AdminHoldsPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [status, setStatus] = useState<"" | HoldStatus>("");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
@@ -54,139 +54,156 @@ export function AdminHoldsPage() {
     return () => clearInterval(id);
   }, [page, status]);
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
+        r.studentId.toLowerCase().includes(q) ||
+        r.className.toLowerCase().includes(q),
+    );
+  }, [rows, search]);
+
   return (
-    <>
-      <div className="page-header">
-        <div className="page-header__text">
-          <h1>All Holds</h1>
-          <p>Every seat reservation across all classes.</p>
-        </div>
-        <div className="filter-bar">
-          <select
-            className="input"
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as "" | HoldStatus);
-              setPage(1);
-            }}
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-bold text-navy-900">All Holds</h2>
+        <p className="text-sm text-navy-500">
+          Every seat reservation across all classes.
+        </p>
       </div>
 
-      {loading && rows.length === 0 && (
-        <div className="table-card">
-          <table className="table">
-            <thead>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-navy-400" />
+          <input
+            className="input pl-9"
+            placeholder="Search by student ID or class..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <select
+          className="input sm:max-w-[180px]"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value as "" | HoldStatus);
+            setPage(1);
+          }}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-navy-50">
               <tr>
-                <th>ID</th>
-                <th>Class</th>
-                <th>Student</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Expires</th>
+                {["ID", "Class", "Student", "Status", "Created", "Expires"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-navy-500 border-b border-navy-200"
+                    >
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
-              <SkeletonRow />
-              <SkeletonRow />
-              <SkeletonRow />
-              <SkeletonRow />
+              {loading && filtered.length === 0 && (
+                <>
+                  {[1, 2, 3, 4].map((i) => (
+                    <tr key={i} className="border-b border-navy-100">
+                      {[1, 2, 3, 4, 5, 6].map((j) => (
+                        <td key={j} className="px-4 py-3">
+                          <div className="skeleton h-4 w-full max-w-[100px]" />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
+              )}
+
+              {!loading && filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-16 text-center">
+                    <Inbox className="w-12 h-12 mx-auto text-navy-300 mb-3" />
+                    <p className="font-semibold text-navy-700">
+                      No holds found
+                    </p>
+                    <p className="text-sm text-navy-500 mt-1">
+                      {status || search
+                        ? "Try clearing the filters."
+                        : "Applications will appear here."}
+                    </p>
+                  </td>
+                </tr>
+              )}
+
+              {filtered.map((h) => (
+                <tr
+                  key={h.holdId}
+                  className="border-b border-navy-100 hover:bg-navy-50 transition-colors"
+                >
+                  <td className="px-4 py-3 tabular-nums text-navy-500">
+                    #{h.holdId}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-navy-900">
+                    {h.className}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-navy-600">
+                    {h.studentId}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={STATUS_BADGE[h.status]}>{h.status}</span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-navy-500 whitespace-nowrap">
+                    {new Date(h.createdAt).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-navy-500 whitespace-nowrap">
+                    {new Date(h.expiresAt).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-      )}
+      </div>
 
-      {!loading && rows.length === 0 && (
-        <div className="empty">
-          <div className="empty__icon">
-            <IconInbox size={56} />
+      {filtered.length > 0 && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center text-sm text-navy-500 gap-3">
+          <span>
+            Showing {(page - 1) * pageSize + 1}–
+            {Math.min(page * pageSize, total)} of {total}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              className="btn-secondary text-xs px-3 py-1.5"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {totalPages || 1}
+            </span>
+            <button
+              className="btn-secondary text-xs px-3 py-1.5"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
           </div>
-          <h3 className="empty__title">No holds found</h3>
-          <p className="empty__text">
-            {status
-              ? "Try clearing the filter."
-              : "Applications will appear here."}
-          </p>
         </div>
       )}
-
-      {rows.length > 0 && (
-        <>
-          <div className="table-card">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Class</th>
-                  <th>Student</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Expires</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((h) => (
-                  <tr key={h.holdId}>
-                    <td className="table__num">#{h.holdId}</td>
-                    <td>
-                      <strong>{h.className}</strong>
-                    </td>
-                    <td
-                      className="text-muted"
-                      style={{ fontFamily: "ui-monospace, monospace" }}
-                    >
-                      {h.studentId}
-                    </td>
-                    <td>
-                      <span className={`badge ${STATUS_CLASS[h.status] ?? ""}`}>
-                        {h.status}
-                      </span>
-                    </td>
-                    <td className="text-muted text-sm">
-                      {new Date(h.createdAt).toLocaleString()}
-                    </td>
-                    <td className="text-muted text-sm">
-                      {new Date(h.expiresAt).toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="pagination">
-            <span className="text-muted text-sm">
-              Showing {(page - 1) * pageSize + 1}–
-              {Math.min(page * pageSize, total)} of {total}
-            </span>
-            <div className="pagination__buttons">
-              <button
-                className="btn btn--ghost btn--sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </button>
-              <span className="text-muted text-sm">
-                Page {page} of {totalPages || 1}
-              </span>
-              <button
-                className="btn btn--ghost btn--sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </>
+    </div>
   );
 }

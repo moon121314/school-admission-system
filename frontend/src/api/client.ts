@@ -1,4 +1,11 @@
 import axios from "axios";
+import type {
+  ClassResponse,
+  MyHoldResponse,
+  AdminStatsResponse,
+  AdminHoldRow,
+  PagedResponse,
+} from "../types/api";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
@@ -13,22 +20,13 @@ export function extractErrorMessage(error: unknown): string {
     if (data && typeof data === "object" && "error" in data) {
       return String(data.error);
     }
-    if (error.response?.status === 409)
-      return "Conflict — please review the form.";
+    if (error.response?.status === 409) return "The class is full.";
     if (error.response?.status === 404) return "Not found.";
     if (error.response?.status === 400) return "Invalid input.";
     return error.message;
   }
   return "An unexpected error occurred.";
 }
-
-import type {
-  ClassResponse,
-  MyHoldResponse,
-  AdminStatsResponse,
-  AdminHoldRow,
-  PagedResponse,
-} from "../types/api";
 
 export async function listClasses() {
   const { data } = await api.get<ClassResponse[]>("/classes");
