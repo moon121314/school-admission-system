@@ -7,6 +7,7 @@ import { useStudentId } from "../hooks/useStudentId";
 import { useToast } from "../contexts/ToastContext";
 import { HoldCard } from "../components/HoldCard";
 import { SkeletonCard } from "../components/Skeleton";
+import { maskStudentId } from "../utils/mask";
 
 export function MyHoldsPage() {
   const { studentId } = useStudentId();
@@ -39,7 +40,14 @@ export function MyHoldsPage() {
       <div>
         <h1 className="text-2xl font-bold text-navy-900">My Applications</h1>
         <p className="text-sm text-navy-500 mt-1">
-          Your seat reservations and confirmed admissions.
+          {studentId ? (
+            <>
+              Showing applications for{" "}
+              <span className="font-mono">{maskStudentId(studentId)}</span>
+            </>
+          ) : (
+            "Your seat reservations and confirmed admissions."
+          )}
         </p>
       </div>
 

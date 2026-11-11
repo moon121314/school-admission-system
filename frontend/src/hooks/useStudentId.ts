@@ -20,5 +20,10 @@ export function useStudentId() {
     }
   }
 
-  return { studentId, setStudentId };
+  function clearStudentId() {
+    localStorage.removeItem(STORAGE_KEY);
+    setStudentIdState(null);
+  }
+
+  return { studentId, setStudentId, clearStudentId };
 }
