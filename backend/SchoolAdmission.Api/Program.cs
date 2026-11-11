@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using SchoolAdmission.Api.Middleware;
 using SchoolAdmission.Application.Interfaces;
@@ -21,12 +22,15 @@ builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddScoped<IClassService, ClassService>();
 builder.Services.AddScoped<IHoldService, HoldService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<StudentIdFilter>();
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
-builder.Services.AddControllers(o => o.Filters.Add<StudentIdFilter>());
 
-// Built-in .NET 10 OpenAPI — replaces Swashbuckle.
+builder.Services.AddControllers(o => o.Filters.Add<StudentIdFilter>())
+    .AddJsonOptions(opts =>
+        opts.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -40,9 +44,7 @@ using (var scope = app.Services.CreateScope())
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseCors();
 
-// Serves the OpenAPI JSON at /openapi/v1.json
 app.MapOpenApi();
-
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 

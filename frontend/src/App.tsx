@@ -5,6 +5,10 @@ import { StudentIdBar } from "./components/StudentIdBar";
 import { ClassesPage } from "./pages/ClassesPage";
 import { MyHoldsPage } from "./pages/MyHoldsPage";
 import { AdminPage } from "./pages/AdminPage";
+import { AdminLayout } from "./pages/admin/AdminLayout";
+import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminClassesPage } from "./pages/admin/AdminClassesPage";
+import { AdminHoldsPage } from "./pages/admin/AdminHoldsPage";
 
 export default function App() {
   return (
@@ -37,7 +41,12 @@ export default function App() {
             <Routes>
               <Route path="/" element={<ClassesPage />} />
               <Route path="/me" element={<MyHoldsPage />} />
-              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="classes" element={<AdminClassesPage />} />
+                <Route path="holds" element={<AdminHoldsPage />} />
+              </Route>
+              <Route path="/admin/create" element={<AdminPage />} />
             </Routes>
           </main>
           <footer className="footer">

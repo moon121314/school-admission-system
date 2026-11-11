@@ -13,7 +13,8 @@ public class ClassesController : ControllerBase
 
     [HttpPost]
     [ProducesResponseType(typeof(ClassResponse), StatusCodes.Status201Created)]
-    public async Task<ActionResult<ClassResponse>> Create([FromBody] ClassCreateRequest request, CancellationToken ct)
+    public async Task<ActionResult<ClassResponse>> Create(
+        [FromBody] ClassCreateRequest request, CancellationToken ct)
     {
         var response = await _service.CreateAsync(request, ct);
         return CreatedAtAction(nameof(Get), new { classId = response.Id }, response);
@@ -26,4 +27,9 @@ public class ClassesController : ControllerBase
     [HttpGet("{classId:int}")]
     public async Task<ActionResult<ClassResponse>> Get(int classId, CancellationToken ct)
         => Ok(await _service.GetAsync(classId, ct));
+
+    [HttpPut("{classId:int}")]
+    public async Task<ActionResult<ClassResponse>> Update(
+        int classId, [FromBody] ClassUpdateRequest request, CancellationToken ct)
+        => Ok(await _service.UpdateAsync(classId, request, ct));
 }

@@ -7,4 +7,5 @@ public interface IClassService
     Task<ClassResponse> CreateAsync(ClassCreateRequest request, CancellationToken ct);
     Task<IReadOnlyList<ClassResponse>> ListAsync(CancellationToken ct);
     Task<ClassResponse> GetAsync(int classId, CancellationToken ct);
+    Task<ClassResponse> UpdateAsync(int classId, ClassUpdateRequest request, CancellationToken ct);
 }
